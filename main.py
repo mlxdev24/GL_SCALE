@@ -1,3 +1,13 @@
+# /// script
+# dependencies = [
+#  "pygame-ce",
+#  "numpy",
+#  "zengl",
+# ]
+# ///
+from math import sin
+
+import numpy as np
 import pygame
 from pygame import Surface
 import zengl
@@ -111,11 +121,11 @@ def main():
     GL_Scale.load()
 
     # window_size = (1280, 720)
-    window_size = (3840, 2160)
+    window_size = (1280, 720)
     win = pygame.Window("OpenGL", window_size, opengl=True)
     scr = win.get_surface()
 
-    src_size = (320, 180)
+    src_size = (640, 320)
     surface = pygame.Surface(src_size, flags=pygame.SRCALPHA, depth=32).convert_alpha()
 
     scaler = GL_Scale(
@@ -129,28 +139,34 @@ def main():
     running = True
     t = 0.0
 
+    rendered_qty = 1000
+    font = pygame.font.SysFont("arial", 50)
+    rendered_text = {number: font.render(f"{number}", True, "white") for number in range(rendered_qty)}
+
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
 
-        t += 0.016
+        dt = clock.tick(0)
+        t += dt
 
-        surface.fill((20, 20, 30, 255))
-        pygame.draw.circle(
-            surface,
-            (255, 140, 0, 255),
-            (int(160 + 80 * __import__("math").sin(t)), 90),
-            30,
-        )
-        pygame.draw.rect(surface, (80, 200, 255, 255), (20, 20, 80, 40))
+        surface.fill((0, 0, 0, 255))
+
+        array = pygame.surfarray.pixels3d(surface)
+        array[:, :, :] = np.random.randint(0, 255, size=(*surface.get_size(), 3))
+        del array
+
+        fps = round(clock.get_fps())
+        image = rendered_text[fps]
+        surface.blit(image, (50, 50))
+        surface = pygame.transform.flip(surface, False, True)
 
         scaler.send(surface)
         scaler.render()
 
         win.title = f"{clock.get_fps():.1f}"
         win.flip()
-        clock.tick(0)
 
     pygame.quit()
 
