@@ -2,10 +2,10 @@
 # dependencies = [
 #  "pygame-ce",
 #  "numpy",
-#  "zengl",
 # ]
 # ///
-from math import sin
+
+import asyncio
 
 import numpy as np
 import pygame
@@ -116,7 +116,7 @@ class GL_Scale:
         self.output.blit()
 
 
-def main():
+async def main():
     pygame.init()
     GL_Scale.load()
 
@@ -168,8 +168,10 @@ def main():
         win.title = f"{clock.get_fps():.1f}"
         win.flip()
 
+        await asyncio.sleep(0)
+
     pygame.quit()
 
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
