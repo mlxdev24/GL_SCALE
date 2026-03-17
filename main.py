@@ -2,15 +2,30 @@
 # dependencies = [
 #  "pygame-ce",
 #  "numpy",
+#  "zengl",
 # ]
 # ///
 
 import asyncio
+import os
+import sys
+from time import perf_counter
 
-import numpy as np
+from numpy.random import default_rng
+from numpy import uint8
 import pygame
 from pygame import Surface
 import zengl
+
+if sys.platform == "win32":
+    import ctypes
+    from ctypes import wintypes
+
+    os.environ["SDL_WINDOWS_DPI_AWARENESS"] = "permonitorv2"
+    os.environ["SDL_WINDOWS_DPI_SCALING"] = '1'
+
+OpenGL = True
+rng = default_rng(42)
 
 
 class GL_Scale:
@@ -116,24 +131,48 @@ class GL_Scale:
         self.output.blit()
 
 
+def get_scaled_window_size():
+    user32 = ctypes.windll.user32
+
+    class RECT(ctypes.Structure):
+        _fields_ = [
+            ("left", wintypes.LONG),
+            ("top", wintypes.LONG),
+            ("width", wintypes.LONG),
+            ("height", wintypes.LONG),
+        ]
+
+    hwnd = user32.GetForegroundWindow()
+
+    client = RECT()
+    ok = user32.GetClientRect(hwnd, ctypes.byref(client))
+    if not ok:
+        raise ctypes.WinError()
+
+    return client.width, client.height
+
+
 async def main():
     pygame.init()
     GL_Scale.load()
 
-    # window_size = (1280, 720)
-    window_size = (1280, 720)
-    win = pygame.Window("OpenGL", window_size, opengl=True)
+    window_size = (640, 360)
+    win = pygame.Window(f"GL_SCALER | OPENGL_STATE: {OpenGL}", window_size, opengl=OpenGL, fullscreen_desktop=False)
+
+    if sys.platform == "win32":
+        print("Zone cliente:", get_scaled_window_size())
+
     scr = win.get_surface()
 
-    src_size = (640, 320)
-    surface = pygame.Surface(src_size, flags=pygame.SRCALPHA, depth=32).convert_alpha()
+    src_size = (320, 180)
+    surface = pygame.Surface(src_size).convert()
 
     scaler = GL_Scale(
-        window_size=window_size,
+        window_size=get_scaled_window_size(),
         source_size=src_size,
         filter_mode="nearest",
         source_order="bgra",
-    )
+    ) if OpenGL else None
 
     clock = pygame.time.Clock()
     running = True
@@ -141,7 +180,8 @@ async def main():
 
     rendered_qty = 1000
     font = pygame.font.SysFont("arial", 50)
-    rendered_text = {number: font.render(f"{number}", True, "white") for number in range(rendered_qty)}
+    rendered_text = {number: font.render(f"{number}", False, "white", "green") for number in range(rendered_qty)}
+    [rendered_text[number].set_colorkey("green", pygame.RLEACCEL) for number in rendered_text]
 
     while running:
         for event in pygame.event.get():
@@ -151,22 +191,34 @@ async def main():
         dt = clock.tick(0)
         t += dt
 
+        t1 = perf_counter()
         surface.fill((0, 0, 0, 255))
 
         array = pygame.surfarray.pixels3d(surface)
-        array[:, :, :] = np.random.randint(0, 255, size=(*surface.get_size(), 3))
+        array[:] = rng.integers(0, 255, (*surface.get_size(), 3), dtype=uint8)
         del array
 
         fps = round(clock.get_fps())
         image = rendered_text[fps]
         surface.blit(image, (50, 50))
-        surface = pygame.transform.flip(surface, False, True)
 
-        scaler.send(surface)
-        scaler.render()
+        t2 = perf_counter()
+        if OpenGL:
+            surface = pygame.transform.flip(surface, False, True)
+            scaler.send(surface)
+            scaler.render()
+        else:
+            pygame.transform.scale(surface, scr.get_size(), scr)
 
-        win.title = f"{clock.get_fps():.1f}"
+        t3 = perf_counter()
+
         win.flip()
+
+        draw_time = t2 - t1
+        scale_time = t3 - t2
+        flip_time = perf_counter() - t3
+
+        win.title = f"GL_SCALER | OPENGL_STATE: {OpenGL} | draw: {draw_time:.4f} | scale: {scale_time:.4f} | flip: {flip_time:.4f}"
 
         await asyncio.sleep(0)
 
