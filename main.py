@@ -12,10 +12,6 @@ import sys
 from time import perf_counter
 import platform
 
-# window = platform.window
-# window.config = window.config or {}
-# window.config.user_canvas_managed = 1
-
 from numpy.random import default_rng
 from numpy import uint8
 import pygame
